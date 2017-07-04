@@ -2,6 +2,7 @@
 #define POINCARE_EMBEDDING_HPP
 
 #include <cassert>
+#include <iostream>
 #include <vector>
 #include <memory>
 #include <random>
@@ -11,8 +12,12 @@
 #include <fstream>
 #include <algorithm>
 #include <thread>
+#include <chrono>
+#include <iomanip>
 
 namespace poincare_disc{
+
+  constexpr float EPS = 0.00001;
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // Initializer
@@ -54,45 +59,89 @@ namespace poincare_disc{
 
 
   ///////////////////////////////////////////////////////////////////////////////////////////
-  // Matrix, VectorView
+  // Vector, Matrix
   ///////////////////////////////////////////////////////////////////////////////////////////
 
   template <class RealType>
-  struct VectorView
+  struct Vector
   {
   public:
     using real = RealType;
   public:
-    VectorView(): data_(nullptr), dim_(0) {}
-    VectorView(real* data, std::size_t dim): data_(data), dim_(dim) {}
+    Vector(): data_(nullptr), dim_(0) {}
+    Vector(std::shared_ptr<real> data, std::size_t dim): data_(data), dim_(dim) {}
+    Vector(const Vector<real>& v): data_(v.data_), dim_(v.dim_) {}
   public:
     const std::size_t dim() const { return dim_; }
-    const real operator[](const std::size_t i) const { return data_[i]; }
-    real& operator[](const std::size_t i) { return data_[i]; }
+    const real operator[](const std::size_t i) const { return data_.get()[i]; }
+    real& operator[](const std::size_t i) { return data_.get()[i]; }
 
-    VectorView<real>& assign_(const real c, const VectorView<real>& v)
+    Vector<real>& assign_(const real c, const Vector<real>& v)
     {
+      if(dim_ != v.dim_){
+        dim_ = v.dim_;
+        data_ = std::shared_ptr<real>(new real[v.dim_]);
+      }
       for(int i = 0, I = dim(); i < I; ++i){
-        data_[i] = c * v.data_[i];
+        data_.get()[i] = c * v.data_.get()[i];
       }
       return *this;
     }
 
-    VectorView<real>& add_(const real c, const VectorView<real>& v)
+    Vector<real>& zero_()
     {
       for(int i = 0, I = dim(); i < I; ++i){
-        data_[i] += c * v.data_[i];
+        data_.get()[i] = 0;
+      }
+      return *this;
+    }
+
+    Vector<real>& add_(const real c, const Vector<real>& v)
+    {
+      for(int i = 0, I = dim(); i < I; ++i){
+        data_.get()[i] += c * v.data_.get()[i];
+      }
+      return *this;
+    }
+
+    Vector<real>& add_clip_(const real c, const Vector<real>& v, const real thresh=1.0-EPS)
+    {
+      real uu = this->squared_sum(), uv = this->dot(v), vv = v.squared_sum();
+      real C = uu + 2*c*uv + c*c*vv; // resulting norm
+      real scale = 1.0;
+      if(C > thresh * thresh){
+        scale = thresh /sqrt(C);
+      }
+      assert( 0 < scale && scale <= 1. );
+      if(scale == 1.){
+        for(int i = 0, I = dim(); i < I; ++i){
+          data_.get()[i] += c * v.data_.get()[i];
+        }
+      }else{
+        for(int i = 0, I = dim(); i < I; ++i){
+          data_.get()[i] = (data_.get()[i] + c * v.data_.get()[i]) * scale;
+        }
+      }
+      return *this;
+    }
+
+    Vector<real>& mult_(const real c)
+    {
+      for(int i = 0, I = dim(); i < I; ++i){
+        data_.get()[i] *= c;
       }
       return *this;
     }
 
     real squared_sum() const { return this->dot(*this); }
-    real dot(const VectorView& v) const
-    { return std::inner_product(data_, data_ + dim_, v.data_, 0.); }
+
+    real dot(const Vector& v) const
+    { return std::inner_product(data_.get(), data_.get() + dim_, v.data_.get(), 0.); }
+
 
   private:
     std::size_t dim_;
-    real *data_;
+    std::shared_ptr<real> data_;
   };
 
   template <class RealType>
@@ -101,48 +150,49 @@ namespace poincare_disc{
   public:
     using real = RealType;
   public:
-    Matrix(): m_(0), n_(0), data_(nullptr) {}
+    Matrix(): m_(0), n_(0), rows_() {}
 
     template <class Initializer>
-    Matrix(const std::size_t m, const std::size_t n, Initializer initializer): m_(), n_(), data_()
+    Matrix(const std::size_t m, const std::size_t n, Initializer initializer): m_(), n_(), rows_()
     { init(m, n, initializer); }
+
+    Matrix(const Matrix<real>& mat): m_(mat.m_), n_(mat.n_), rows_(mat.rows_) {}
 
   public:
 
     template <class Initializer>
     void init(const std::size_t m, const std::size_t n, Initializer initializer)
     {
-      m_ = m; n_ = n; data_ = std::shared_ptr<real>(new real[m*n], [](real *p) { delete[] p;});
-      for(std::size_t i=0, I=m*n; i < I; ++i){
-        data_.get()[i] = initializer();
+      m_ = m; n_ = n; rows_ = std::vector<Vector<real> >(m);
+      for(std::size_t i = 0; i < m; ++i){
+        rows_[i] = Vector<real>(std::shared_ptr<real>(new real[n]), n);
+        for(std::size_t j = 0; j < n; ++j){
+          rows_[i][j] = initializer();
+        }
       }
     }
 
     std::size_t nrow() const { return m_; }
     std::size_t ncol() const { return n_; }
 
-    const VectorView<real> operator[](const std::size_t i) const
-    { return VectorView<real>(data_.get() + n_ * i, n_); }
+    const Vector<real>& operator[](const std::size_t i) const
+    { return rows_[i]; }
 
-    VectorView<real> operator[](const std::size_t i)
-    { return VectorView<real>(data_.get() + n_ * i, n_); }
+    Vector<real>& operator[](const std::size_t i)
+    { return rows_[i]; }
 
-    void zero_()
+    Matrix<real>& zero_()
     {
-      for(auto ptr = data_.get(), end = data_.get() + m_ * n_; ptr != end; ++ptr){
-        *ptr = 0.;
+      for(std::size_t i = 0; i < m_; ++i){
+        rows_[i].zero_();
       }
+      return *this;
     }
 
   private:
     std::size_t m_, n_;
-    std::shared_ptr<real> data_;
+    std::vector<Vector<real> > rows_;
   };
-
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  // Matrix, VectorView
-  ///////////////////////////////////////////////////////////////////////////////////////////
-
 
 
   ///////////////////////////////////////////////////////////////////////////////////////////
@@ -152,7 +202,7 @@ namespace poincare_disc{
   template <class RealType>
   RealType arcosh(const RealType x)
   {
-    assert( x > 1 );
+    assert( x >= 1 );
     return std::log(x + std::sqrt(x*x - 1)); 
   }
 
@@ -163,7 +213,7 @@ namespace poincare_disc{
     using real = RealType;
   public:
     Distance(): u_(), v_(), uu_(), vv_(), uv_(), alpha_(), beta_(), gamma_() {}
-    real operator()(const VectorView<real>& u, const VectorView<real>& v)
+    real operator()(const Vector<real>& u, const Vector<real>& v)
     {
       u_ = u;
       v_ = v;
@@ -171,14 +221,27 @@ namespace poincare_disc{
       vv_ = v_.squared_sum();
       uv_ = u_.dot(v_);
       alpha_ = 1 - uu_;
+      if(alpha_ <= 0){ alpha_ = EPS; } // TODO: ensure 0 <= uu_ <= 1-EPS;
+      // if(!(alpha_ > 0)){ std::cout << "uu_: " << uu_ << ", alpha_: " << alpha_ << std::endl; }
+      // assert(alpha_ > 0);
       beta_ = 1 - vv_;
+      if(beta_ <= 0){ beta_ = EPS; } // TODO: ensure 0 <= vv_ <= 1-EPS;
+      // if(!(beta_ > 0)){ std::cout << "vv_: " << vv_ << ", beta_: " << beta_ << std::endl; }
+      // assert(beta_ > 0);
       gamma_ = 1 + 2 * (uu_ - 2 * uv_ + vv_) / alpha_ / beta_;
+      if(gamma_ < 1.){ gamma_ = 1.; } // for nemerical error
+      assert(gamma_ >= 1);
       return arcosh<real>(gamma_);
     }
 
-    void backward(VectorView<real>& grad_u, VectorView<real>& grad_v, real grad_output)
+    void backward(Vector<real>& grad_u, Vector<real>& grad_v, real grad_output)
     {
       real c = grad_output;
+      if(gamma_ == 1){
+        grad_u.zero_();
+        grad_v.zero_();
+        return;
+      }
 
       c *= 4 / beta_ / std::sqrt(gamma_ * gamma_ - 1);
 
@@ -194,7 +257,7 @@ namespace poincare_disc{
     }
 
   private:
-    VectorView<real> u_, v_;
+    Vector<real> u_, v_;
     real uu_, vv_, uv_, alpha_, beta_, gamma_;
   };
 
@@ -232,7 +295,6 @@ namespace poincare_disc{
   public:
     real operator()(const real dist) const
     {}
-
 
   };
 
@@ -286,7 +348,7 @@ namespace poincare_disc{
     using real = RealType;
     std::size_t dim = 5; // dimension
     std::size_t seed = 0; // seed
-    UniformInitializer<real> initializer; // embedding initializer
+    UniformInitializer<real> initializer = UniformInitializer<real>(-0.001, 0.001); // embedding initializer
     std::size_t num_threads = 1;
     std::size_t neg_size = 10;
     std::size_t max_epoch = 1;
@@ -294,10 +356,19 @@ namespace poincare_disc{
     real lr0 = 0.0001; // learning rate
   };
 
+  template <class RealType>
+  void clip(Vector<RealType>& v, const RealType& thresh = 1-EPS)
+  {
+    RealType vv = v.squared_sum();
+    if(vv >= thresh*thresh){
+      v.mult_(thresh / std::sqrt(vv));
+    }
+  }
+
   inline bool read_data(std::vector<std::pair<std::size_t, std::size_t> >& data,
-                  Dictionary<std::string>& dict,
-                  const std::string& filename,
-                  const char delim)
+                        Dictionary<std::string>& dict,
+                        const std::string& filename,
+                        const char delim)
   {
     std::ifstream fin(filename.c_str());
     if(!fin || !fin.good()){
@@ -369,23 +440,41 @@ namespace poincare_disc{
                     const std::vector<std::size_t>& counts,
                     DataItr beg, DataItr end,
                     const Config<RealType>& config,
+                    const std::size_t thread_no,
                     const unsigned int seed)
   {
     using real = RealType;
+
+    // clip
+    for(std::size_t i = 0, I = embeddings.nrow(); i < I; ++i){
+      clip(embeddings[i]);
+    }
 
     // construct negative sampler
     UniformNegativeSampler negative_sampler(counts.begin(), counts.end(), seed);
 
     // data, gradients, distances
     std::vector<std::size_t> left_indices(1 + config.neg_size), right_indices(1 + config.neg_size);
-    Matrix<real> left_grads(1, config.dim(), ZeroInitializer<real>()); // u
-    Matrix<real> right_grads(1 + config.neg_size, config.dim(), ZeroInitializer<real>()); // v, v', ...
+    Matrix<real> left_grads(1 + config.neg_size, config.dim, ZeroInitializer<real>()); // u
+    Matrix<real> right_grads(1 + config.neg_size, config.dim, ZeroInitializer<real>()); // v, v', ...
     std::vector<Distance<real> > dists(1 + config.neg_size);
     std::vector<real> exp_neg_dist_values(1 + config.neg_size);
     // start training
     auto itr = beg;
+    std::size_t itr_count = 0, total_itr = std::distance(beg, end);
+    auto tick = std::chrono::system_clock::now();
+    std::size_t progress_interval = 1000;
     while(itr != end){
-
+      if(thread_no == 0 && itr_count % progress_interval == 0){
+        auto tack = std::chrono::system_clock::now();
+        auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(tack-tick).count();
+        tick = tack;
+        double percent = (100.0 * itr_count) / total_itr;
+        std::cout << "\r"
+                  <<std::setw(5) << std::fixed << std::setprecision(2) << percent << " %"
+                  << "    " << progress_interval*1000./millisec << " itr/sec" << std::flush;
+      }
+      ++itr_count;
       // // zero init gradients
       // left_grads.zero_();
       // right_grads.zero_();
@@ -393,6 +482,7 @@ namespace poincare_disc{
       // store samples
       auto i = left_indices[0] = itr->first;
       auto j = right_indices[0] = itr->second;
+
       exp_neg_dist_values[0] = std::exp(-dists[0](embeddings[i], embeddings[j]));
       for(std::size_t k = 0; k < config.neg_size; ++k){
         auto i = left_indices[k + 1] = itr->first;
@@ -416,17 +506,29 @@ namespace poincare_disc{
       // update
       for(std::size_t k = 0; k < 1 + config.neg_size; ++k){
         auto i = left_indices[k], j = right_indices[k];
-        embeddings[i].add_(-config.lr0, left_grads[k]);
-        embeddings[j].add_(-config.lr0, right_grads[k]);
+        embeddings[i].add_clip_(-config.lr0, left_grads[k]);
+        embeddings[j].add_clip_(-config.lr0, right_grads[k]);
       }
+
+      // // clip
+      // for(std::size_t k = 0; k < 1 + config.neg_size; ++k){
+      //   auto i = left_indices[k], j = right_indices[k];
+      //   clip(embeddings[i]);
+      //   clip(embeddings[j]);
+      // }
 
       // next iteration
       ++itr;
     }
+    if(thread_no == 0){
+      std::cout << std::endl;
+    }
+    return true;
   }
 
   template <class RealType>
   bool poincare_embedding(Matrix<RealType>& embeddings,
+                          Dictionary<std::string>& dict,
                           const std::string& filename,
                           const Config<RealType>& config)
   {
@@ -436,8 +538,7 @@ namespace poincare_disc{
 
     // read file and construct negative sampler
     std::vector<std::pair<std::size_t, std::size_t> > data;
-    Dictionary<std::string> dict;
-
+    std::cout << "read " << filename << std::endl;
     bool ret = read_data(data, dict, filename, config.delim);
 
     std::size_t data_size = data.size();
@@ -451,6 +552,8 @@ namespace poincare_disc{
 
     embeddings.init(dict.size(), config.dim, config.initializer);
 
+    std::cout << "embedding size: " << embeddings.nrow() << " x " << embeddings.ncol() << std::endl;
+
     // fit
     std::vector<std::pair<std::size_t, std::size_t> > fake_pairs(config.neg_size);
     for(std::size_t epoch = 0; epoch < config.max_epoch; ++epoch){
@@ -458,7 +561,7 @@ namespace poincare_disc{
       std::cout << "random shuffle data" << std::endl;
       std::random_shuffle(data.begin(), data.end());
 
-      if(config.num_threas > 1){
+      if(config.num_threads > 1){
         // multi thread
         std::size_t data_size_per_thread = data_size / config.num_threads;
         std::cout << "start multi thread training" << std::endl;
@@ -470,9 +573,10 @@ namespace poincare_disc{
           auto beg = data.begin() + data_size_per_thread * i;
           auto end = data.begin() + std::min(data_size_per_thread * (i+1), data_size);
           unsigned int thread_seed = engine();
-          threads.push_back(std::thread( [=]{ train_thread(embeddings, dict.counts(),
-                                                           beg, end,
-                                                           config, thread_seed); }  ));
+          const auto& counts = dict.counts();
+          threads.push_back(std::thread( [=, &embeddings, &counts]{ train_thread(embeddings, counts,
+                                                                                 beg, end,
+                                                                                 config, i, thread_seed); }  ));
         }
         for(auto& th : threads){
           th.join();
@@ -482,7 +586,7 @@ namespace poincare_disc{
         std::cout << "start single thread training" << std::endl;
         std::cout << "data size = " << data_size << std::endl;
         const unsigned int thread_seed = engine();
-        train_thread(embeddings, dict.counts(), data.begin(), data.end(), config, thread_seed);
+        train_thread(embeddings, dict.counts(), data.begin(), data.end(), config, 0, thread_seed);
       }
 
     }
