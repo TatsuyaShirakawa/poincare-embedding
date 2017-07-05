@@ -32,7 +32,7 @@ struct Arguments
   std::size_t neg_size = 10;
   std::size_t max_epoch = 1;
   std::size_t dim = 50;
-  real lr0 = 0.001;
+  real lr0 = 0.005;
 };
 
 Arguments parse_args(int narg, char** argv)
@@ -108,7 +108,7 @@ Arguments parse_args(int narg, char** argv)
 
  HELP:
   std::cerr <<
-    program_name << " data_file (result_embedding_file) [options...]\n"
+    "usage: " << program_name << " data_file [result_embedding_file] [options...]\n"
     "\n"
     "    data_file            : string    input data tsv file. each line contains pair of items\n"
     "    result_embeddng_file : string    result file into which resulting embeddings are written\n"

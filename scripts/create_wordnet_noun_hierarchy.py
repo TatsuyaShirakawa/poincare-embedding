@@ -28,7 +28,7 @@ def main(result_file, shuffle, sep):
 
     hypernyms = list(transitive_closure(nouns))
     print( len(hypernyms), 'hypernyms' )
-    if shuffle:
+    if not shuffle:
         random.shuffle(hypernyms)
     with open(result_file, 'w') as fout:
         for n1, n2 in hypernyms:
