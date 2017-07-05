@@ -347,12 +347,12 @@ namespace poincare_disc{
   {
     using real = RealType;
     std::size_t dim = 5; // dimension
-    std::size_t seed = 0; // seed
+    unsigned int seed = 0; // seed
     UniformInitializer<real> initializer = UniformInitializer<real>(-0.0001, 0.0001); // embedding initializer
     std::size_t num_threads = 1;
     std::size_t neg_size = 10;
     std::size_t max_epoch = 1;
-    char delim = ',';
+    char delim = '\t';
     real lr0 = 0.0001; // learning rate
   };
 
@@ -463,7 +463,7 @@ namespace poincare_disc{
     auto itr = beg;
     std::size_t itr_count = 0, total_itr = std::distance(beg, end);
     auto tick = std::chrono::system_clock::now();
-    std::size_t progress_interval = 1000;
+    std::size_t progress_interval = 10000;
     while(itr != end){
       if(thread_no == 0 && itr_count % progress_interval == 0){
         auto tack = std::chrono::system_clock::now();
@@ -472,7 +472,7 @@ namespace poincare_disc{
         double percent = (100.0 * itr_count) / total_itr;
         std::cout << "\r"
                   <<std::setw(5) << std::fixed << std::setprecision(2) << percent << " %"
-                  << "    " << progress_interval*1000./millisec << " itr/sec" << std::flush;
+                  << "    " << config.num_threads * progress_interval*1000./millisec << " itr/sec" << std::flush;
       }
       ++itr_count;
       // // zero init gradients
