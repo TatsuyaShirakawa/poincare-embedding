@@ -348,7 +348,7 @@ namespace poincare_disc{
     using real = RealType;
     std::size_t dim = 5; // dimension
     std::size_t seed = 0; // seed
-    UniformInitializer<real> initializer = UniformInitializer<real>(-0.001, 0.001); // embedding initializer
+    UniformInitializer<real> initializer = UniformInitializer<real>(-0.0001, 0.0001); // embedding initializer
     std::size_t num_threads = 1;
     std::size_t neg_size = 10;
     std::size_t max_epoch = 1;

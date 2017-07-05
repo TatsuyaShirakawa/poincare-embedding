@@ -25,13 +25,16 @@ void save(const std::string& filename,
 
 int main()
 {
-  std::string filename = "./pair.full.text8.csv";
+  std::string filename = "./data.csv"; // some csv file in which pair of items are listed
   std::string resultfile = "./embeddings.tsv";
 
   Matrix<real> embeddings;
   Dictionary<std::string> dict;
   Config<real> config;
   config.num_threads = 4;
+  config.max_epoch = 1;
+  config.dim = 5;
+  config.lr0 = 0.001;
 
   std::cout << "start training" << std::endl;
   bool ret = poincare_embedding<real>(embeddings, dict, filename, config);
