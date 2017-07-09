@@ -15,6 +15,11 @@
 #include <chrono>
 #include <iomanip>
 
+#define LEFT_SAMPLING 0
+#define RIGHT_SAMPLING 1
+#define BOTH_SAMPLING 2
+#define SAMPLING_STRATEGY 0
+
 namespace poincare_disc{
 
   constexpr float EPS = 0.00001;
@@ -71,6 +76,11 @@ namespace poincare_disc{
     Vector(): data_(nullptr), dim_(0) {}
     Vector(std::shared_ptr<real> data, std::size_t dim): data_(data), dim_(dim) {}
     Vector(const Vector<real>& v): data_(v.data_), dim_(v.dim_) {}
+    Vector<real>& operator=(const Vector<real>& v)
+    {
+      data_ = v.data_; dim_ = v.dim_;
+      return *this;
+    }
   public:
     const std::size_t dim() const { return dim_; }
     const real operator[](const std::size_t i) const { return data_.get()[i]; }
@@ -110,7 +120,7 @@ namespace poincare_disc{
       real C = uu + 2*c*uv + c*c*vv; // resulting norm
       real scale = 1.0;
       if(C > thresh * thresh){
-        scale = thresh /sqrt(C);
+        scale = thresh / sqrt(C);
       }
       assert( 0 < scale && scale <= 1. );
       if(scale == 1.){
@@ -122,6 +132,7 @@ namespace poincare_disc{
           data_.get()[i] = (data_.get()[i] + c * v.data_.get()[i]) * scale;
         }
       }
+      assert(this->squared_sum() <= thresh * thresh+EPS);
       return *this;
     }
 
@@ -144,6 +155,25 @@ namespace poincare_disc{
     std::shared_ptr<real> data_;
   };
 
+
+  template <class RealType>
+  std::ostream& operator<<(std::ostream& out, const Vector<RealType>& v)
+  {
+    if(v.dim() < 5){
+      out << "[";
+      for(int i = 0; i < v.dim(); ++i){
+        if(i > 0){ out << ", ";}
+        out << v[i];
+      }
+      out << "]";
+    }else{
+      out << "[";
+      out << v[0] << ", " << v[1] << ", ..., " << v[v.dim()-1];
+      out << "]";
+    }
+    return out;
+  }
+
   template <class RealType>
   struct Matrix
   {
@@ -157,6 +187,14 @@ namespace poincare_disc{
     { init(m, n, initializer); }
 
     Matrix(const Matrix<real>& mat): m_(mat.m_), n_(mat.n_), rows_(mat.rows_) {}
+
+    Matrix<real>& operator=(const Matrix<real>& mat)
+    {
+      m_ = mat.m_;
+      n_ = mat.n_;
+      rows_ = mat.rows_;
+      return *this;
+    }
 
   public:
 
@@ -243,17 +281,17 @@ namespace poincare_disc{
         return;
       }
 
-      c *= 4 / beta_ / std::sqrt(gamma_ * gamma_ - 1);
+      c  *= 4 / std::sqrt(gamma_ * gamma_ - 1) / alpha_ / beta_;
 
-      // adjust by metric^(-1)
-      real cu = c * (1 - uu_) * (1 - uu_) / 4;
-      real cv = c * (1 - vv_) * (1 - vv_) / 4;
+      // grad for u
+      real cu = c * alpha_ * alpha_ / 4;
+      real cv = c * beta_ * beta_  / 4;
 
-      grad_u.assign_(cu * (vv_ - 2 * uv_ + 1) / alpha_ / alpha_, u_);
-      grad_u.add_(-cu / alpha_, v_);
+      grad_u.assign_(cu * (vv_ - 2 * uv_ + 1) / alpha_, u_);
+      grad_u.add_(-cu, v_);
 
-      grad_v.assign_(cv * (uu_ - 2 * uv_ + 1) / alpha_ / alpha_, v_);
-      grad_v.add_(-cv / alpha_, u_);
+      grad_v.assign_(cv * (uu_ - 2 * uv_ + 1) / beta_, v_);
+      grad_v.add_(-cv, u_);
     }
 
   private:
@@ -281,21 +319,6 @@ namespace poincare_disc{
   private:
     std::default_random_engine engine_;
     std::discrete_distribution<std::size_t> dist_;
-  };
-
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  // Loss Function
-  ///////////////////////////////////////////////////////////////////////////////////////////
-
-  template <class RealType>
-  struct CrossEntropyLoss
-  {
-  public:
-    using real = RealType;
-  public:
-    real operator()(const real dist) const
-    {}
-
   };
 
   ///////////////////////////////////////////////////////////////////////////////////////////
@@ -451,6 +474,7 @@ namespace poincare_disc{
     }
 
     // construct negative sampler
+    // TODO: negative sampler can be shared through threads
     UniformNegativeSampler negative_sampler(counts.begin(), counts.end(), seed);
 
     // data, gradients, distances
@@ -463,16 +487,27 @@ namespace poincare_disc{
     auto itr = beg;
     std::size_t itr_count = 0, total_itr = std::distance(beg, end);
     auto tick = std::chrono::system_clock::now();
-    std::size_t progress_interval = 10000;
+    constexpr std::size_t progress_interval = 10000;
+    double avg_loss = 0;
+    // if(thread_no == 0){
+    //   std::cout << embeddings[0] << std::endl;
+    //   std::cout << embeddings[1000] << std::endl;
+    //   std::cout << embeddings[2000] << std::endl;
+    // }
     while(itr != end){
       if(thread_no == 0 && itr_count % progress_interval == 0){
         auto tack = std::chrono::system_clock::now();
         auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(tack-tick).count();
         tick = tack;
         double percent = (100.0 * itr_count) / total_itr;
+        avg_loss /= progress_interval;
         std::cout << "\r"
                   <<std::setw(5) << std::fixed << std::setprecision(2) << percent << " %"
-                  << "    " << config.num_threads * progress_interval*1000./millisec << " itr/sec" << std::flush;
+                  << "    " << config.num_threads * progress_interval*1000./millisec << " itr/sec"
+                  << "    " << "loss: " << avg_loss
+                  << std::flush;
+
+        avg_loss = 0;
       }
       ++itr_count;
       // // zero init gradients
@@ -485,8 +520,16 @@ namespace poincare_disc{
 
       exp_neg_dist_values[0] = std::exp(-dists[0](embeddings[i], embeddings[j]));
       for(std::size_t k = 0; k < config.neg_size; ++k){
+#if SAMPLING_STRATEGY == LEFT_SAMPLING
+        auto i = left_indices[k + 1] = negative_sampler();
+        auto j = right_indices[k + 1] = itr->second;
+#elif SAMPLING_STRATEGY == RIGHT_SAMPLING
         auto i = left_indices[k + 1] = itr->first;
         auto j = right_indices[k + 1] = negative_sampler();
+#elif SAMPLING_STRATEGY == BOTH_SAMPLING
+        auto i = left_indices[k + 1] = negative_sampler();
+        auto j = right_indices[k + 1] = negative_sampler();
+#endif
         exp_neg_dist_values[k + 1] = std::exp(-dists[k + 1](embeddings[i], embeddings[j]));
       }
 
@@ -502,6 +545,13 @@ namespace poincare_disc{
       for(std::size_t k = 0; k < config.neg_size; ++k){
         dists[k + 1].backward(left_grads[k+1], right_grads[k+1], -exp_neg_dist_values[k+1]/Z);
       }
+
+      // add loss
+      {
+        avg_loss -= std::log(exp_neg_dist_values[0]);
+        avg_loss += std::log(Z);
+      }
+
 
       // update
       for(std::size_t k = 0; k < 1 + config.neg_size; ++k){
@@ -556,17 +606,17 @@ namespace poincare_disc{
 
     // fit
     std::vector<std::pair<std::size_t, std::size_t> > fake_pairs(config.neg_size);
+    std::cout << "num_threads = " << config.num_threads << std::endl;
+    std::size_t data_size_per_thread = data_size / config.num_threads;
+    std::cout << "data size = " << data_size_per_thread << "/thread" << std::endl;
+
     for(std::size_t epoch = 0; epoch < config.max_epoch; ++epoch){
       std::cout << "epoch " << epoch+1 << "/" << config.max_epoch << " start" << std::endl;
-      std::cout << "random shuffle data" << std::endl;
+      // std::cout << "random shuffle data" << std::endl;
       std::random_shuffle(data.begin(), data.end());
 
       if(config.num_threads > 1){
         // multi thread
-        std::size_t data_size_per_thread = data_size / config.num_threads;
-        std::cout << "start multi thread training" << std::endl;
-        std::cout << "num_threads = " << config.num_threads << std::endl;
-        std::cout << "data size = " << data_size_per_thread << "/thread" << std::endl;
 
         std::vector<std::thread> threads;
         for(std::size_t i = 0; i < config.num_threads; ++i){

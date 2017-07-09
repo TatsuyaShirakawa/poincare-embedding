@@ -36,7 +36,7 @@ python ../scripts/create_wordnet_noun_hierarchy.py ./wordnet_noun_hypernyms.tsv
 ### Run
 
 ```shell
-./poincare_embedding ./wordnet_noun_hypernyms.tsv ./embeddings.tsv -d 2 -t 8 -e 50 -l 0.005
+./poincare_embedding ./wordnet_noun_hypernyms.tsv ./embeddings.tsv -d 2 -t 8 -e 100 -l 0.1
 ```
 ### Plot Tree
 

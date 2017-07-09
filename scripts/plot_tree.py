@@ -52,7 +52,7 @@ def main(root_name, data_file, embedding_file, max_plot, left_is_parent):
     for n in targets:
         x, y = embeddings.ix[n]
         ax.plot(x, y, 'o', color='y')
-        ax.text(x+0.05, y+0.05, n, color='b')
+        ax.text(x+0.01, y+0.01, n, color='b')
     plt.show()
 
 if __name__ == '__main__':
