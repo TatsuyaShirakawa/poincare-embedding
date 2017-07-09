@@ -4,7 +4,6 @@ This codes implement Poincar\'e Embedding introduced in the following paper:
 
 [Maximilian Nickel and Douwe Kiela, "Poincar\'e Embeddings for Learning Hierarchical Representations'", arXiv preprint arXiv:1705.08039, 2017.](https://arxiv.org/abs/1705.08039)
 
-Remarks: Latest version haven't reproduce appealing results yet.
     
 ## Build
 
@@ -49,3 +48,5 @@ python ../scripts/create_mammal_subtree.py ./mammal_subtree.tsv
 ```shell
 python ../scripts/plot_mammal_subtree.py ./embeddings.tsv
 ```
+
+![mammal.png](./misc/mammal.png)
