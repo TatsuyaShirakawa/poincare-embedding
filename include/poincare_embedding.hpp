@@ -132,7 +132,7 @@ namespace poincare_disc{
           data_.get()[i] = (data_.get()[i] + c * v.data_.get()[i]) * scale;
         }
       }
-      assert(this->squared_sum() <= thresh * thresh+EPS);
+      assert(this->squared_sum() <= (thresh + EPS) * (thresh+EPS));
       return *this;
     }
 
@@ -362,6 +362,34 @@ namespace poincare_disc{
   };
 
   ///////////////////////////////////////////////////////////////////////////////////////////
+  // Optimization
+  ///////////////////////////////////////////////////////////////////////////////////////////
+
+  template <class RealType>
+  struct LinearLearningRate
+  {
+  public:
+    using real = RealType;
+  public:
+    LinearLearningRate(const real lr_init, const real lr_final, const std::size_t total_iter)
+      :lr_init_(lr_init), lr_final_(lr_final), current_iter_(0), total_iter_(total_iter)
+    {}
+  public:
+    void update(){ ++current_iter_;}
+    real operator()() const
+    {
+      real r = static_cast<real>(static_cast<double>(current_iter_) / total_iter_);
+      assert( 0 <= r && r <= 1);
+      return (1-r) * lr_init_ + r * lr_final_;
+    }
+  public:
+    real lr_init_;
+    real lr_final_;
+    std::size_t current_iter_;
+    std::size_t total_iter_;
+  };
+
+  ///////////////////////////////////////////////////////////////////////////////////////////
   // Poincare Embedding
   ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -376,7 +404,8 @@ namespace poincare_disc{
     std::size_t neg_size = 10;
     std::size_t max_epoch = 1;
     char delim = '\t';
-    real lr0 = 0.0001; // learning rate
+    real lr0 = 0.01; // learning rate
+    real lr1 = 0.0001; // learning rate
   };
 
   template <class RealType>
@@ -463,6 +492,7 @@ namespace poincare_disc{
                     const std::vector<std::size_t>& counts,
                     DataItr beg, DataItr end,
                     const Config<RealType>& config,
+                    LinearLearningRate<RealType>& lr,
                     const std::size_t thread_no,
                     const unsigned int seed)
   {
@@ -559,9 +589,11 @@ namespace poincare_disc{
       // update
       for(std::size_t k = 0; k < 1 + config.neg_size; ++k){
         auto i = left_indices[k], j = right_indices[k];
-        embeddings[i].add_clip_(-config.lr0, left_grads[k]);
-        embeddings[j].add_clip_(-config.lr0, right_grads[k]);
+        embeddings[i].add_clip_(-lr(), left_grads[k]);
+        embeddings[j].add_clip_(-lr(), right_grads[k]);
       }
+
+      lr.update();
 
       // // clip
       // for(std::size_t k = 0; k < 1 + config.neg_size; ++k){
@@ -615,6 +647,7 @@ namespace poincare_disc{
     std::cout << "embedding size: " << embeddings.nrow() << " x " << embeddings.ncol() << std::endl;
 
     // fit
+    LinearLearningRate<real> lr(config.lr0, config.lr1, data_size * config.max_epoch);
     std::vector<std::pair<std::size_t, std::size_t> > fake_pairs(config.neg_size);
     std::cout << "num_threads = " << config.num_threads << std::endl;
     std::size_t data_size_per_thread = data_size / config.num_threads;
@@ -634,9 +667,10 @@ namespace poincare_disc{
           auto end = data.begin() + std::min(data_size_per_thread * (i+1), data_size);
           unsigned int thread_seed = engine();
           const auto& counts = dict.counts();
-          threads.push_back(std::thread( [=, &embeddings, &counts]{ train_thread(embeddings, counts,
-                                                                                 beg, end,
-                                                                                 config, i, thread_seed); }  ));
+          threads.push_back(std::thread( [=, &embeddings, &counts, &lr]{ train_thread(embeddings, counts,
+                                                                                      beg, end,
+                                                                                      config, lr,
+                                                                                      i, thread_seed); }  ));
         }
         for(auto& th : threads){
           th.join();
@@ -644,7 +678,7 @@ namespace poincare_disc{
       }else{
         // single thread
         const unsigned int thread_seed = engine();
-        train_thread(embeddings, dict.counts(), data.begin(), data.end(), config, 0, thread_seed);
+        train_thread(embeddings, dict.counts(), data.begin(), data.end(), config, lr, 0, thread_seed);
       }
 
     }

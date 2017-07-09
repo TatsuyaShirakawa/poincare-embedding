@@ -44,7 +44,7 @@ def main(result_file, shuffle, sep, target):
 
     hypernyms = list(set(hypernyms))
     print( len(hypernyms), 'hypernyms' )
-    
+
     if not shuffle:
         random.shuffle(hypernyms)
     with open(result_file, 'w') as fout:

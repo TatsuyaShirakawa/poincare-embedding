@@ -32,7 +32,9 @@ struct Arguments
   std::size_t neg_size = 10;
   std::size_t max_epoch = 1;
   std::size_t dim = 50;
-  real lr0 = 0.005;
+  real uniform_range = 0.001;
+  real lr0 = 0.01;
+  real lr1 = 0.0001;
 };
 
 Arguments parse_args(int narg, char** argv)
@@ -72,11 +74,23 @@ Arguments parse_args(int narg, char** argv)
       if( n <= 0 ){ goto HELP; }
       result.dim = static_cast<std::size_t>(n);
       continue;
-    }else if(arg == "-l" || arg == "--learning_rate"){
+    }else if(arg == "-l" || arg == "--learning_rate_init"){
       arg = argv[++i];
       double x = std::stod(arg);
       if( x <= 0 ){ goto HELP; }
       result.lr0 = static_cast<real>(x);
+      continue;
+    }else if(arg == "-L" || arg == "--learning_rate_final"){
+      arg = argv[++i];
+      double x = std::stod(arg);
+      if( x <= 0 ){ goto HELP; }
+      result.lr1 = static_cast<real>(x);
+      continue;
+    }else if(arg == "-u" || arg == "--uniform_range"){
+      arg = argv[++i];
+      double x = std::stod(arg);
+      if( x <= 0 ){ goto HELP; }
+      result.uniform_range = static_cast<real>(x);
       continue;
     }else if(arg == "-h" || arg == "--help"){
       goto HELP;
@@ -110,14 +124,16 @@ Arguments parse_args(int narg, char** argv)
   std::cerr <<
     "usage: " << program_name << " data_file [result_embedding_file] [options...]\n"
     "\n"
-    "    data_file            : string    input data tsv file. each line contains pair of items\n"
-    "    result_embeddng_file : string    result file into which resulting embeddings are written\n"
-    "    -s, --seed           : int >= 0   random seed\n"
-    "    -t, --num_threads    : int > 0   number of threads\n"
-    "    -n, --neg_size       : int > 0   negativ sample size\n"
-    "    -e, --max_epoch      : int > 0   maximum training epochs\n"
-    "    -d, --dim            : int > 0   dimension of embeddings\n"
-    "    -l, --learning_rate  : float > 0 initial learning rate\n"
+    "    data_file                 : string    input data tsv file. each line contains pair of items\n"
+    "    result_embeddng_file      : string    result file into which resulting embeddings are written\n"
+    "    -s, --seed                : int >= 0   random seed\n"
+    "    -t, --num_threads         : int > 0   number of threads\n"
+    "    -n, --neg_size            : int > 0   negativ sample size\n"
+    "    -e, --max_epoch           : int > 0   maximum training epochs\n"
+    "    -d, --dim                 : int > 0   dimension of embeddings\n"
+    "    -u, --uniform_range       : float > 0 embedding uniform initializer range\n"
+    "    -l, --learning_rate_init  : float > 0 initial learning rate\n"
+    "    -L, --learning_rate_final : float > 0 final learning rate\n"
             << std::endl;
   exit(0);
 }
@@ -141,6 +157,8 @@ int main(int narg, char** argv)
   config.max_epoch = args.max_epoch;
   config.dim = args.dim;
   config.lr0 = args.lr0;
+  config.lr1 = args.lr1;
+  config.initializer = UniformInitializer<real>(-args.uniform_range, args.uniform_range);
 
   std::cout << "settings:" << "\n"
             << "  " << "data_file             : " << data_file << "\n"
@@ -151,6 +169,8 @@ int main(int narg, char** argv)
             << "  " << "max_epoch             : " << config.max_epoch << "\n"
             << "  " << "dim                   : " << config.dim << "\n"
             << "  " << "lr0                   : " << config.lr0 << "\n"
+            << "  " << "lr1                   : " << config.lr1 << "\n"
+            << "  " << "uniform_range         : " << args.uniform_range << "\n"
             << std::endl;
 
   std::cout << "start training" << std::endl;
