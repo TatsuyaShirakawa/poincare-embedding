@@ -487,8 +487,10 @@ namespace poincare_disc{
     auto itr = beg;
     std::size_t itr_count = 0, total_itr = std::distance(beg, end);
     auto tick = std::chrono::system_clock::now();
+    auto start_time = tick;
     constexpr std::size_t progress_interval = 10000;
     double avg_loss = 0;
+    double cum_loss = 0;
     // if(thread_no == 0){
     //   std::cout << embeddings[0] << std::endl;
     //   std::cout << embeddings[1000] << std::endl;
@@ -500,6 +502,7 @@ namespace poincare_disc{
         auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(tack-tick).count();
         tick = tack;
         double percent = (100.0 * itr_count) / total_itr;
+        cum_loss += avg_loss;
         avg_loss /= progress_interval;
         std::cout << "\r"
                   <<std::setw(5) << std::fixed << std::setprecision(2) << percent << " %"
@@ -571,7 +574,14 @@ namespace poincare_disc{
       ++itr;
     }
     if(thread_no == 0){
-      std::cout << std::endl;
+      cum_loss += avg_loss;
+      auto tack = std::chrono::system_clock::now();
+      auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(tack-start_time).count();
+        std::cout << "\r"
+                  <<std::setw(5) << std::fixed << std::setprecision(2) << 100 << " %"
+                  << "    " << config.num_threads * total_itr * 1000./millisec << " itr/sec"
+                  << "    " << "loss: " << cum_loss / total_itr
+                  << std::endl;
     }
     return true;
   }
@@ -633,8 +643,6 @@ namespace poincare_disc{
         }
       }else{
         // single thread
-        std::cout << "start single thread training" << std::endl;
-        std::cout << "data size = " << data_size << std::endl;
         const unsigned int thread_seed = engine();
         train_thread(embeddings, dict.counts(), data.begin(), data.end(), config, 0, thread_seed);
       }
