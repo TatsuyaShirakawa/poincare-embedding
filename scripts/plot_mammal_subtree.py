@@ -5,9 +5,14 @@ import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.style.use('ggplot')
 import click
 
 def transitive_isometry(t1, t0):
+    u'''
+    computing isometry which move t1 to t0
+    '''
+
     (x1, y1), (x0,y0) = t1, t0
 
     def to_h(z):
@@ -19,10 +24,12 @@ def transitive_isometry(t1, t0):
     z1 = complex(x1, y1)
     z0 = complex(x0, y0)
 
-    h1 = complex(to_h(z1))
-    h0 = complex(to_h(z0))
+    h1 = to_h(z1)
+    h0 = to_h(z0)
 
     def f(h):
+        assert( h0.imag > 0 )
+        assert( h1.imag > 0 )
         return h0.imag/h1.imag * (h - h1.real) + h0.real
 
     def ret(z):
@@ -39,7 +46,8 @@ def transitive_isometry(t1, t0):
 @click.argument("embedding_file")
 @click.option("--max_plot", default=30)
 @click.option("--left_is_parent", is_flag=True)
-def main(embedding_file, max_plot, left_is_parent):
+@click.option("--center_mammal", is_flag=True)
+def main(embedding_file, max_plot, left_is_parent, center_mammal):
 
     targets = ['mammal.n.01', 'beagle.n.01', 'canine.n.02', 'german_shepherd.n.01',
                'collie.n.01', 'border_collie.n.01',
@@ -55,7 +63,6 @@ def main(embedding_file, max_plot, left_is_parent):
     # load embeddings
     print("read embedding_file:", embedding_file)
     embeddings = pd.read_csv(embedding_file, header=None, sep="\t", index_col=0)
-
     print("plot")
     fig = plt.figure(figsize=(10,10))
     ax = plt.gca()
@@ -68,14 +75,22 @@ def main(embedding_file, max_plot, left_is_parent):
     ax.add_artist(circle)
 
     z = embeddings.ix['mammal.n.01']
-    isom = transitive_isometry((z[1], z[2]), (0, 0))
+    if center_mammal:
+        isom = transitive_isometry((z[1], z[2]), (0, 0))
 
     for n in targets:
         z = embeddings.ix[n]
-        x, y = isom((z[1], z[2]))
-        print(x, y)
-        ax.plot(x, y, 'o', color='y')
-        ax.text(x+0.001, y+0.001, n, color='b')
+        if center_mammal:
+            x, y = isom((z[1], z[2]))
+        else:
+            x, y = z[1], z[2]
+        print(z, x, y)
+        if n == 'mammal.n.01':
+            ax.plot(x, y, 'o', color='g')
+            ax.text(x+0.001, y+0.001, n, color='r', alpha=0.6)
+        else:
+            ax.plot(x, y, 'o', color='y')
+            ax.text(x+0.001, y+0.001, n, color='b', alpha=0.6)
     plt.show()
 
 if __name__ == '__main__':

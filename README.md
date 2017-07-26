@@ -1,6 +1,6 @@
 # poincare-embedding
 
-This codes implement Poincar\'e Embedding introduced in the following paper:
+These codes implement Poincar\'e Embedding introduced in the following paper:
 
 [Maximilian Nickel and Douwe Kiela, "Poincar\'e Embeddings for Learning Hierarchical Representations'", arXiv preprint arXiv:1705.08039, 2017.](https://arxiv.org/abs/1705.08039)
 
@@ -41,12 +41,13 @@ python ../scripts/create_mammal_subtree.py ./mammal_subtree.tsv
 ### Run
 
 ```shell
-./poincare_embedding ./mammal_subtree.tsv ./embeddings.tsv -d 2 -t 8 -e 1000 -l 0.1 -L 0.0001 -n 20
+./poincare_embedding ./mammal_subtree.tsv ./embeddings.tsv -d 2 -t 8 -e 1000 -l 0.1 -L 0.0001 -n 50 -s 0
 ```
-### Plot Tree
+### Plot a Mammal Tree
 
 ```shell
-python ../scripts/plot_mammal_subtree.py ./embeddings.tsv
+python ../scripts/plot_mammal_subtree.py ./embeddings.tsv --center_mammal
 ```
 
 ![mammal.png](./misc/mammal.png)
+

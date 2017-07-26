@@ -1,2 +1,5 @@
 click
 nltk
+numpy
+matplotlib
+pandas
