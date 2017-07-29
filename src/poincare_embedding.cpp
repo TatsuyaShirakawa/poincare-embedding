@@ -149,6 +149,7 @@ int main(int narg, char** argv)
   std::string result_embedding_file = args.result_embedding_file;
 
   Matrix<real> embeddings;
+  std::vector<std::pair<std::size_t, std::size_t> > data;
   Dictionary<std::string> dict;
   Config<real> config;
   config.seed = args.seed;
@@ -173,8 +174,23 @@ int main(int narg, char** argv)
             << "  " << "uniform_range         : " << args.uniform_range << "\n"
             << std::endl;
 
+
+  std::cout << "read data" << std::endl;
+  bool ret = read_data(data, dict, data_file, config.delim);
+  if(!ret){
+    std::cerr << "file reading error" << std::endl;
+    exit(1);
+  }
+
+  std::cout << "data size: " << data.size() << std::endl;
+
   std::cout << "start training" << std::endl;
-  bool ret = poincare_embedding<real>(embeddings, dict, data_file, config);
+  ret = poincare_embedding<real>(embeddings, data, dict, config);
+
+  if(!ret){
+    std::cerr << "training failed" << std::endl;
+    exit(1);
+  }
 
   std::cout << "save to " << result_embedding_file << std::endl;
   save(result_embedding_file, embeddings, dict);

@@ -22,7 +22,7 @@
 
 namespace poincare_disc{
 
-  constexpr float EPS = 0.00001;
+  constexpr float EPS = 1e-6;
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // Initializer
@@ -620,27 +620,15 @@ namespace poincare_disc{
 
   template <class RealType>
   bool poincare_embedding(Matrix<RealType>& embeddings,
-                          Dictionary<std::string>& dict,
-                          const std::string& filename,
+                          std::vector<std::pair<std::size_t, std::size_t> >& data, // unconst because of random shuffle
+                          const Dictionary<std::string>& dict,
                           const Config<RealType>& config)
   {
     using real = RealType;
 
     std::default_random_engine engine(config.seed);
 
-    // read file and construct negative sampler
-    std::vector<std::pair<std::size_t, std::size_t> > data;
-    std::cout << "read " << filename << std::endl;
-    bool ret = read_data(data, dict, filename, config.delim);
-
     std::size_t data_size = data.size();
-    std::cout << "data size: " << data_size << std::endl;
-
-    std::ifstream fin(filename.c_str());
-    if(!fin || !fin.good()){
-      std::cerr << "cannot read file: " << filename << std::endl;
-      return false;
-    }
 
     embeddings.init(dict.size(), config.dim, config.initializer);
 
