@@ -41,7 +41,7 @@ python ../scripts/create_mammal_subtree.py ./mammal_subtree.tsv
 ### Run
 
 ```shell
-./poincare_embedding ./mammal_subtree.tsv ./embeddings.tsv -d 2 -t 8 -e 1000 -l 0.1 -L 0.0001 -n 50 -s 0
+./poincare_embedding ./mammal_subtree.tsv ./embeddings.tsv -d 2 -t 8 -e 1000 -l 0.1 -L 0.0001 -n 20 -s 0
 ```
 ### Plot a Mammal Tree
 

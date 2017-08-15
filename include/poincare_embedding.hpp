@@ -18,7 +18,7 @@
 #define LEFT_SAMPLING 0
 #define RIGHT_SAMPLING 1
 #define BOTH_SAMPLING 2
-#define SAMPLING_STRATEGY 0
+#define SAMPLING_STRATEGY 1
 
 namespace poincare_disc{
 
@@ -520,7 +520,7 @@ namespace poincare_disc{
     auto start_time = tick;
     constexpr std::size_t progress_interval = 10000;
     double avg_loss = 0;
-    double cum_loss = 0;
+	    double cum_loss = 0;
     // if(thread_no == 0){
     //   std::cout << embeddings[0] << std::endl;
     //   std::cout << embeddings[1000] << std::endl;
@@ -567,17 +567,17 @@ namespace poincare_disc{
       }
 
       // compute gradient
-      // grads for 0
-      dists[0].backward(left_grads[0], right_grads[0], 1.);
       // grads for 1, 2, ...
       // at first, compute the grad input
-      real Z = 0.;
+      real Z = exp_neg_dist_values[0];
       for(std::size_t k = 0; k < config.neg_size; ++k){
         Z += exp_neg_dist_values[k + 1];
       }
       for(std::size_t k = 0; k < config.neg_size; ++k){
         dists[k + 1].backward(left_grads[k+1], right_grads[k+1], -exp_neg_dist_values[k+1]/Z);
       }
+      // grads for 0
+      dists[0].backward(left_grads[0], right_grads[0], 1 - exp_neg_dist_values[0]/Z);
 
       // add loss
       {
