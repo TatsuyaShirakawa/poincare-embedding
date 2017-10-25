@@ -4,7 +4,11 @@ These codes implement Poincar\'e Embedding introduced in the following paper:
 
 [Maximilian Nickel and Douwe Kiela, "Poincar\'e Embeddings for Learning Hierarchical Representations'", arXiv preprint arXiv:1705.08039, 2017.](https://arxiv.org/abs/1705.08039)
 
-    
+## Requirements
+
+- C++ compiler that supports c++14 or later
+    - for Windows user, using cygwin is recommended (with CMAKE and gcc/g++ selection) (thanks @patrickgitacc)
+
 ## Build
 
 ```shell
