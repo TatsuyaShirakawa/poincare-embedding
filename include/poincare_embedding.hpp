@@ -430,9 +430,9 @@ namespace poincare_disc{
 
     // TODO incremental read
     fin.seekg(0, fin.end);
-    int length = fin.tellg();
+    std::streampos length = fin.tellg();
     fin.seekg(0, fin.beg);
-    char* buffer = new char[length+1];
+    char* buffer = new char[length + static_cast<std::streampos>(1)];
     fin.read(buffer, length);
     buffer[length] = '\0';
     fin.close();
