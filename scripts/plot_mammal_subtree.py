@@ -57,7 +57,7 @@ def main(embedding_file, max_plot, left_is_parent, center_mammal):
                'even-toed_ungulate.n.01', 'ungulate.n.01', 'elephant.n.01', 'rhinoceros.n.01',
                'odd-toed_ungulate.n.01', 'mustang.n.01', 'liger.n.01', 'lion.n.01', 'cat.n.01', 'dog.n.01']
 
-    targets = list(set([x for x in targets]))
+    targets = list(set(targets))
     print(len(targets), ' targets found')
 
     # load embeddings
@@ -74,16 +74,20 @@ def main(embedding_file, max_plot, left_is_parent, center_mammal):
     circle = plt.Circle((0,0), 1., color='black', fill=False)
     ax.add_artist(circle)
 
-    z = embeddings.ix['mammal.n.01']
+    z = embeddings.loc['mammal.n.01']
     if center_mammal:
-        isom = transitive_isometry((z[1], z[2]), (0, 0))
+        isom = transitive_isometry((z.at[1], z.at[2]), (0, 0))
+
+    print(z, z.index)
 
     for n in targets:
-        z = embeddings.ix[n]
+        z = embeddings.loc[n]
+        if isinstance(z, pd.DataFrame): continue # if the index is non-unique
+        print(z.at[1],z.at[2])
         if center_mammal:
-            x, y = isom((z[1], z[2]))
+            x, y = isom((z.at[1], z.at[2]))
         else:
-            x, y = z[1], z[2]
+            x, y = z.at[1], z.at[2]
         print(z, x, y)
         if n == 'mammal.n.01':
             ax.plot(x, y, 'o', color='g')
