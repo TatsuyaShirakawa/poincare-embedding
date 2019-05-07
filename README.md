@@ -18,6 +18,29 @@ cmake ..
 make
 ```
 
+## Setup python environment
+
+From the poincare-embeddings directory...
+
+```shell
+python3 -m venv venv
+source venv/bin/activate
+```
+
+if using windows:
+
+```shell
+python3 -m venv venv
+venv\Scripts\activate
+```
+
+Then run the following:
+
+```shell
+python3 -m pip install -r requirements.txt
+python3 -c "import nltk; nltk.download('wordnet')"
+```
+
 ## Tutorial
 
 We assume that you are in work directory
@@ -53,5 +76,16 @@ python ../scripts/create_mammal_subtree.py ./mammal_subtree.tsv
 python ../scripts/plot_mammal_subtree.py ./embeddings.tsv --center_mammal
 ```
 
-![mammal.png](./misc/mammal.png)
+Note: if that doesn't work, may need to run the following:
 
+```shell
+tr -d '\015' < embeddings.tsv > embeddings_clean.tsv
+```
+
+Double check that the file has removed the character in question, then run
+
+```shell
+mv embeddings_clean.tsv embeddings.tsv
+```
+
+![mammal.png](./misc/mammal.png)
